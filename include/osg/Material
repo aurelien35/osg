@@ -16,6 +16,7 @@
 
 #include <osg/Vec4>
 #include <osg/StateAttribute>
+#include <osg/Uniform>
 
 #ifndef OSG_GL_FIXED_FUNCTION_AVAILABLE
     #define GL_AMBIENT                  0x1200
@@ -52,7 +53,7 @@ class OSG_EXPORT Material : public StateAttribute
             _emissionBack(mat._emissionBack),
             _shininessFrontAndBack(mat._shininessFrontAndBack),
             _shininessFront(mat._shininessFront),
-            _shininessBack(mat._shininessBack) {}
+            _shininessBack(mat._shininessBack) {createBuiltUniforms();}
 
         META_StateAttribute(osg, Material, MATERIAL);
 
@@ -111,8 +112,9 @@ class OSG_EXPORT Material : public StateAttribute
             OFF
         };
 
-        inline void setColorMode(ColorMode mode) { _colorMode = mode; }
+        inline void setColorMode(ColorMode mode);
         inline ColorMode getColorMode() const { return _colorMode; }
+        static int colorModeToUniformValue(ColorMode mode);
 
         void setAmbient( Face face, const Vec4& ambient );
         const Vec4& getAmbient(Face face) const;
@@ -175,29 +177,41 @@ class OSG_EXPORT Material : public StateAttribute
     protected :
 
         virtual ~Material();
+        void createBuiltUniforms();
 
-        ColorMode _colorMode;
+        ColorMode		 _colorMode;
+        ref_ptr<Uniform> _colorModeFrontUniform;
+        ref_ptr<Uniform> _colorModeBackUniform;
 
-        bool _ambientFrontAndBack;
-        Vec4 _ambientFront;                          // r, g, b, w
-        Vec4 _ambientBack;                           // r, g, b, w
+        bool             _ambientFrontAndBack;
+        Vec4             _ambientFront;              // r, g, b, w
+        ref_ptr<Uniform> _ambientFrontUniform;
+        Vec4             _ambientBack;               // r, g, b, w
+        ref_ptr<Uniform> _ambientBackUniform;
 
-        bool _diffuseFrontAndBack;
-        Vec4 _diffuseFront;                          // r, g, b, w
-        Vec4 _diffuseBack;                           // r, g, b, w
+        bool             _diffuseFrontAndBack;
+        Vec4             _diffuseFront;              // r, g, b, w
+        ref_ptr<Uniform> _diffuseFrontUniform;
+        Vec4             _diffuseBack;               // r, g, b, w
+        ref_ptr<Uniform> _diffuseBackUniform;
 
-        bool _specularFrontAndBack;
-        Vec4 _specularFront;                         // r, g, b, w
-        Vec4 _specularBack;                          // r, g, b, w
+        bool             _specularFrontAndBack;
+        Vec4             _specularFront;             // r, g, b, w
+        ref_ptr<Uniform> _specularFrontUniform;
+        Vec4             _specularBack;              // r, g, b, w
+        ref_ptr<Uniform> _specularBackUniform;
 
-        bool _emissionFrontAndBack;
-        Vec4 _emissionFront;                         // r, g, b, w
-        Vec4 _emissionBack;                          // r, g, b, w
+        bool             _emissionFrontAndBack;
+        Vec4             _emissionFront;             // r, g, b, w
+        ref_ptr<Uniform> _emissionFrontUniform;
+        Vec4             _emissionBack;              // r, g, b, w
+        ref_ptr<Uniform> _emissionBackUniform;
 
-        bool   _shininessFrontAndBack;
-        float  _shininessFront;                      // values 0 - 128.0
-        float  _shininessBack;                       // values 0 - 128.0
-
+        bool             _shininessFrontAndBack;
+        float            _shininessFront;            // values 0 - 128.0
+        ref_ptr<Uniform> _shininessFrontUniform;
+        float            _shininessBack;             // values 0 - 128.0
+        ref_ptr<Uniform> _shininessBackUniform;
 };
 
 }

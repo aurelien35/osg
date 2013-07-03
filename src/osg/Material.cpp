@@ -13,6 +13,7 @@
 #include <osg/Material>
 #include <osg/BoundsChecking>
 #include <osg/Notify>
+#include <osg/State>
 
 using namespace osg;
 
@@ -39,6 +40,8 @@ Material::Material()
     _shininessFrontAndBack = true;
     _shininessFront = 0.0f;
     _shininessBack = 0.0f;
+
+    createBuiltUniforms();
 }
 
 
@@ -67,9 +70,89 @@ Material& Material:: operator = (const Material& rhs)
     _shininessFront= rhs._shininessFront;
     _shininessBack= rhs._shininessBack;
 
+    // Update uniforms
+    _colorModeFrontUniform->set(colorModeToUniformValue(_colorMode));
+    _colorModeBackUniform->set(colorModeToUniformValue(_colorMode));
+    _ambientFrontUniform->set(_ambientFront);
+    _ambientBackUniform->set(_ambientBack);
+    _diffuseFrontUniform->set(_diffuseFront);
+    _diffuseBackUniform->set(_diffuseBack);
+    _specularFrontUniform->set(_specularFront);
+    _specularBackUniform->set(_specularBack);
+    _emissionFrontUniform->set(_emissionFront);
+    _emissionBackUniform->set(_emissionBack);
+    _shininessFrontUniform->set(_shininessFront);
+    _shininessBackUniform->set(_shininessBack);
+
     return *this;
 }
 
+void Material::createBuiltUniforms()
+{
+    _colorModeFrontUniform = new Uniform("osg_FrontMaterial.colorMode", colorModeToUniformValue(_colorMode));
+    _colorModeBackUniform  = new Uniform("osg_BackMaterial.colorMode",  colorModeToUniformValue(_colorMode));
+    _ambientFrontUniform   = new Uniform("osg_FrontMaterial.ambient",   _ambientFront);
+    _ambientBackUniform    = new Uniform("osg_BackMaterial.ambient",    _ambientBack);
+    _diffuseFrontUniform   = new Uniform("osg_FrontMaterial.diffuse",   _diffuseFront);
+    _diffuseBackUniform    = new Uniform("osg_BackMaterial.diffuse",    _diffuseBack);
+    _specularFrontUniform  = new Uniform("osg_FrontMaterial.specular",  _specularFront);
+    _specularBackUniform   = new Uniform("osg_BackMaterial.specular",   _specularBack);
+    _emissionFrontUniform  = new Uniform("osg_FrontMaterial.emission",  _emissionFront);
+    _emissionBackUniform   = new Uniform("osg_BackMaterial.emission",   _emissionBack);
+    _shininessFrontUniform = new Uniform("osg_FrontMaterial.shininess", _shininessFront);
+    _shininessBackUniform  = new Uniform("osg_BackMaterial.shininess",  _shininessBack);
+
+    // Set DYNAMIC data variance on Uniforms
+    _colorModeFrontUniform->setDataVariance(DYNAMIC);
+    _colorModeBackUniform->setDataVariance(DYNAMIC);
+    _ambientFrontUniform->setDataVariance(DYNAMIC);
+    _ambientBackUniform->setDataVariance(DYNAMIC);
+    _diffuseFrontUniform->setDataVariance(DYNAMIC);
+    _diffuseBackUniform->setDataVariance(DYNAMIC);
+    _specularFrontUniform->setDataVariance(DYNAMIC);
+    _specularBackUniform->setDataVariance(DYNAMIC);
+    _emissionFrontUniform->setDataVariance(DYNAMIC);
+    _emissionBackUniform->setDataVariance(DYNAMIC);
+    _shininessFrontUniform->setDataVariance(DYNAMIC);
+    _shininessBackUniform->setDataVariance(DYNAMIC);
+}
+
+void Material::setColorMode(ColorMode mode)
+{
+    _colorMode = mode;
+	int uniformValue = colorModeToUniformValue(_colorMode);
+    _colorModeFrontUniform->set(uniformValue);
+    _colorModeBackUniform->set(uniformValue);
+}
+
+int Material::colorModeToUniformValue(ColorMode mode)
+{
+	int result = 0;
+	
+	switch (mode)
+	{
+		case AMBIENT :
+			result = 1;
+			break;
+		case DIFFUSE :
+			result = 2;
+			break;
+		case SPECULAR :
+			result = 3;
+			break;
+		case EMISSION :
+			result = 4;
+			break;
+		case AMBIENT_AND_DIFFUSE :
+			result = 5;
+			break;
+		default :
+			result = 0;
+			break;
+	}
+	
+	return result;
+}
 
 void Material::setAmbient(Face face, const Vec4& ambient )
 {
@@ -79,17 +162,21 @@ void Material::setAmbient(Face face, const Vec4& ambient )
             _ambientFrontAndBack = false;
             _ambientFront = ambient;
             //clampArray4BetweenRange(_ambientFront,0.0f,1.0f,"osg::Material::setAmbient(..)");
+            _ambientFrontUniform->set(ambient);
             break;
         case(BACK):
             _ambientFrontAndBack = false;
             _ambientBack = ambient;
             //clampArray4BetweenRange(_ambientBack,0.0f,1.0f,"Material::setAmbient(..)");
+            _ambientBackUniform->set(ambient);
             break;
         case(FRONT_AND_BACK):
             _ambientFrontAndBack = true;
             _ambientFront = ambient;
             //clampArray4BetweenRange(_ambientFront,0.0f,1.0f,"Material::setAmbient(..)");
             _ambientBack = _ambientFront;
+            _ambientFrontUniform->set(ambient);
+            _ambientBackUniform->set(ambient);
             break;
         default:
             OSG_NOTICE<<"Notice: invalid Face passed to Material::setAmbient()."<<std::endl;
@@ -126,17 +213,21 @@ void Material::setDiffuse(Face face, const Vec4& diffuse )
             _diffuseFrontAndBack = false;
             _diffuseFront = diffuse;
             //clampArray4BetweenRange(_diffuseFront,0.0f,1.0f,"Material::setDiffuse(..)");
+            _diffuseFrontUniform->set(diffuse);
             break;
         case(BACK):
             _diffuseFrontAndBack = false;
             _diffuseBack = diffuse;
             //clampArray4BetweenRange(_diffuseBack,0.0f,1.0f,"Material::setDiffuse(..)");
+            _diffuseBackUniform->set(diffuse);
             break;
         case(FRONT_AND_BACK):
             _diffuseFrontAndBack = true;
             _diffuseFront = diffuse;
             //clampArray4BetweenRange(_diffuseFront,0.0f,1.0f,"Material::setDiffuse(..)");
             _diffuseBack = _diffuseFront;
+            _diffuseFrontUniform->set(diffuse);
+            _diffuseBackUniform->set(diffuse);
             break;
         default:
             OSG_NOTICE<<"Notice: invalid Face passed to Material::setDiffuse()."<< std::endl;
@@ -174,17 +265,21 @@ void Material::setSpecular(Face face, const Vec4& specular )
             _specularFrontAndBack = false;
             _specularFront = specular;
             //clampArray4BetweenRange(_specularFront,0.0f,1.0f,"Material::setSpecular(..)");
+            _specularFrontUniform->set(specular);
             break;
         case(BACK):
             _specularFrontAndBack = false;
             _specularBack = specular;
             //clampArray4BetweenRange(_specularBack,0.0f,1.0f,"Material::setSpecular(..)");
+            _specularBackUniform->set(specular);
             break;
         case(FRONT_AND_BACK):
             _specularFrontAndBack = true;
             _specularFront = specular;
             //clampArray4BetweenRange(_specularFront,0.0f,1.0f,"Material::setSpecular(..)");
             _specularBack = _specularFront;
+            _specularFrontUniform->set(specular);
+            _specularBackUniform->set(specular);
             break;
         default:
             OSG_NOTICE<<"Notice: invalid Face passed to Material::setSpecular()."<< std::endl;
@@ -222,17 +317,21 @@ void Material::setEmission(Face face, const Vec4& emission )
             _emissionFrontAndBack = false;
             _emissionFront = emission;
             //clampArray4BetweenRange(_emissionFront,0.0f,1.0f,"Material::setEmission(..)");
+            _emissionFrontUniform->set(emission);
             break;
         case(BACK):
             _emissionFrontAndBack = false;
             _emissionBack = emission;
             //clampArray4BetweenRange(_emissionBack,0.0f,1.0f,"Material::setEmission(..)");
+            _emissionBackUniform->set(emission);
             break;
         case(FRONT_AND_BACK):
             _emissionFrontAndBack = true;
             _emissionFront = emission;
             //clampArray4BetweenRange(_emissionFront,0.0f,1.0f,"Material::setEmission(..)");
             _emissionBack = _emissionFront;
+            _emissionFrontUniform->set(emission);
+            _emissionBackUniform->set(emission);
             break;
         default:
             OSG_NOTICE<<"Notice: invalid Face passed to Material::setEmission()."<< std::endl;
@@ -271,15 +370,19 @@ void Material::setShininess(Face face, float shininess )
         case(FRONT):
             _shininessFrontAndBack = false;
             _shininessFront = shininess;
+            _shininessFrontUniform->set(shininess);
             break;
         case(BACK):
             _shininessFrontAndBack = false;
             _shininessBack = shininess;
+            _shininessBackUniform->set(shininess);
             break;
         case(FRONT_AND_BACK):
             _shininessFrontAndBack = true;
             _shininessFront = shininess;
             _shininessBack = shininess;
+            _shininessFrontUniform->set(shininess);
+            _shininessBackUniform->set(shininess);
             break;
         default:
             OSG_NOTICE<<"Notice: invalid Face passed to Material::setShininess()."<< std::endl;
@@ -318,6 +421,12 @@ void Material::setTransparency(Face face,float transparency)
         _diffuseFront[3] = 1.0f-transparency;
         _specularFront[3] = 1.0f-transparency;
         _emissionFront[3] = 1.0f-transparency;
+
+        // Update uniforms
+        _ambientFrontUniform->set(_ambientFront);
+        _diffuseFrontUniform->set(_diffuseFront);
+        _specularFrontUniform->set(_specularFront);
+        _emissionFrontUniform->set(_emissionFront);
     }
 
     if (face==BACK || face==FRONT_AND_BACK)
@@ -326,6 +435,12 @@ void Material::setTransparency(Face face,float transparency)
         _diffuseBack[3] = 1.0f-transparency;
         _specularBack[3] = 1.0f-transparency;
         _emissionBack[3] = 1.0f-transparency;
+
+        // Update uniforms
+        _ambientBackUniform->set(_ambientBack);
+        _diffuseBackUniform->set(_diffuseBack);
+        _specularBackUniform->set(_specularBack);
+        _emissionBackUniform->set(_emissionBack);
     }
 }
 
@@ -339,6 +454,12 @@ void Material::setAlpha(Face face,float alpha)
         _diffuseFront[3] = alpha;
         _specularFront[3] = alpha;
         _emissionFront[3] = alpha;
+
+        // Update uniforms
+        _ambientFrontUniform->set(_ambientFront);
+        _diffuseFrontUniform->set(_diffuseFront);
+        _specularFrontUniform->set(_specularFront);
+        _emissionFrontUniform->set(_emissionFront);
     }
 
     if (face==BACK || face==FRONT_AND_BACK)
@@ -347,11 +468,30 @@ void Material::setAlpha(Face face,float alpha)
         _diffuseBack[3] = alpha;
         _specularBack[3] = alpha;
         _emissionBack[3] = alpha;
+
+        // Update uniforms
+        _ambientBackUniform->set(_ambientBack);
+        _diffuseBackUniform->set(_diffuseBack);
+        _specularBackUniform->set(_specularBack);
+        _emissionBackUniform->set(_emissionBack);
     }
 }
 
-void Material::apply(State&) const
+void Material::apply(State& state) const
 {
+	state.applyShaderCompositionUniform(_colorModeFrontUniform);
+	state.applyShaderCompositionUniform(_colorModeBackUniform);
+	state.applyShaderCompositionUniform(_ambientFrontUniform);
+	state.applyShaderCompositionUniform(_ambientBackUniform);
+	state.applyShaderCompositionUniform(_diffuseFrontUniform);
+	state.applyShaderCompositionUniform(_diffuseBackUniform);
+	state.applyShaderCompositionUniform(_specularFrontUniform);
+	state.applyShaderCompositionUniform(_specularBackUniform);
+	state.applyShaderCompositionUniform(_emissionFrontUniform);
+	state.applyShaderCompositionUniform(_emissionBackUniform);
+	state.applyShaderCompositionUniform(_shininessFrontUniform);
+	state.applyShaderCompositionUniform(_shininessBackUniform);
+
 #ifdef OSG_GL_FIXED_FUNCTION_AVAILABLE
 
 #ifdef OSG_GL1_AVAILABLE
