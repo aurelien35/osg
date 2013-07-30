@@ -194,8 +194,8 @@ typedef char GLchar;
 #define GL_PROGRAM_POINT_SIZE_EXT                    0x8642
 #endif
 
-// ARB_tesselation_shader
-#ifndef GL_ARB_tesselation_shader
+// ARB_tessellation_shader
+#ifndef GL_ARB_tessellation_shader
 #define GL_PATCHES                                             0x000E
 #define GL_PATCH_VERTICES                                      0x8E72
 #define GL_PATCH_DEFAULT_INNER_LEVEL                           0x8E73
@@ -529,6 +529,8 @@ class OSG_EXPORT GL2Extensions : public osg::Referenced
 
         void setShaderAtomicCounterSupported(bool flag) { _isShaderAtomicCountersSupported = flag; }
         bool isShaderAtomicCounterSupported() const {return _isShaderAtomicCountersSupported; }
+
+        bool isDrawBuffersSupported() const { return _glDrawBuffers!=0; }
 
         /** Function to call to get the extension of a specified context.
           * If the Exentsion object for that context has not yet been created then

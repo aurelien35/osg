@@ -1,6 +1,6 @@
-OpenSceneGraph Library 3.1.9
+OpenSceneGraph Library 3.2.0
 
-510 Contributors:
+511 Contributors:
 
 Firstname Surname
 -----------------
@@ -11,8 +11,8 @@ Paul Martz
 Mathias Fröhlich
 Marco Jez
 Farshid Lashkari
-Jean-Sébastien Guay
 Wang Rui
+Jean-Sébastien Guay
 Mike Weiblen
 Ulrich Hertlein
 Eric Wing
@@ -51,25 +51,26 @@ Tom Jolley
 Pavel Moloshtan
 Brad Christiansen
 Olaf Flebbe
+Mathieu Marache
 Jason Daly
 Art Tevs
 Philip Lowman
 Per Fahlberg
 Norman Vine
-Mathieu Marache
 Terry Welsh
 Serge Lages
+Lionel Lagarde
 Chris Denham
 Alberto Farre
 Sherman Wilcox
 Robert Michael
 Mourad Boufarguine
-Lionel Lagarde
 André Garneau
 Adrian Egli
 Ruben Lopez
 Randall Hopper
 Jan Ciger
+Torben Dannhauer
 Glenn Waldron
 Gideon May
 Don Tidrow
@@ -82,12 +83,11 @@ Joakim Simonsson
 David Spilling
 Daniel Sjölie
 Bryan Thrall
-Torben Dannhauer
 Fabien Lavignotte
+Andreas Ekstrand
 Mike Connell
 Melchior Franz
 Johannes Baeuerle
-Andreas Ekstrand
 Riccardo Corsi
 Rafa Gaitan
 Neil Hughes
@@ -266,6 +266,7 @@ Keith Steffen
 Julen Garcia
 Joseph Winston
 John Aughey
+Johannes Scholz
 Joachim Pouderoux
 Jean-Christophe Lombardo
 Javier Taibo
@@ -293,6 +294,7 @@ Daniel Trstenjak
 Craig Bosma
 Claus Scheiblauer
 Christophe Loustaunau
+Christian Ruzicka
 Brad Anderegg
 Aric Aumann
 Andrew Sampson
@@ -339,6 +341,7 @@ Ross Anderson
 Ronny Krueger
 Ronald van Maarseveen
 Romain Charbit
+Rocco Martino
 Robert Swain
 Rob Smith
 Rob Radtke
@@ -428,7 +431,6 @@ John Donovan
 John Davis
 John Cummings
 John Argentieri
-Johannes Scholz
 Joan Abadie
 Jim Brooks
 Jeroen den Dekker
@@ -481,7 +483,6 @@ Clay Fowler
 Chuck Sembroski
 Christopher Blaesius
 Christophe Herreman
-Christian Ruzicka
 Christian Noon
 Christian Kaser
 Christian Ehrlicher
