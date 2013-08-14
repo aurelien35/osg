@@ -145,6 +145,9 @@ class OSGUTIL_EXPORT IntersectorGroup : public Intersector
   * pass the constructed intersector to the IntersectionVisitor.*/
 class OSGUTIL_EXPORT IntersectionVisitor : public osg::NodeVisitor
 {
+    protected:
+        typedef std::pair< osg::ref_ptr<osg::RefMatrix>, osg::StateAttribute::OverrideValue > MatrixOverrideValuePair;
+
     public:
 
         /** Callback used to implement the reading of external files, allowing support for paged databases to be
@@ -195,11 +198,11 @@ class OSGUTIL_EXPORT IntersectionVisitor : public osg::NodeVisitor
         const ReadCallback* getReadCallback() const { return _readCallback.get(); }
 
 
-        void pushWindowMatrix(osg::RefMatrix* matrix) { _windowStack.push_back(matrix); _eyePointDirty = true; }
-        void pushWindowMatrix(osg::Viewport* viewport) { _windowStack.push_back(new osg::RefMatrix( viewport->computeWindowMatrix()) ); _eyePointDirty = true; }
+        void pushWindowMatrix(osg::RefMatrix* matrix, osg::StateAttribute::OverrideValue overrideValue);
+        void pushWindowMatrix(osg::Viewport* viewport, osg::StateAttribute::OverrideValue overrideValue) { pushWindowMatrix(new osg::RefMatrix( viewport->computeWindowMatrix()), overrideValue ); }
         void popWindowMatrix() { _windowStack.pop_back(); _eyePointDirty = true; }
-        osg::RefMatrix* getWindowMatrix() { return _windowStack.empty() ? 0 :  _windowStack.back().get(); }
-        const osg::RefMatrix* getWindowMatrix() const { return _windowStack.empty() ? 0 :  _windowStack.back().get(); }
+        osg::RefMatrix* getWindowMatrix() { return _windowStack.empty() ? 0 :  _windowStack.back().first.get(); }
+        const osg::RefMatrix* getWindowMatrix() const { return _windowStack.empty() ? 0 :  _windowStack.back().first.get(); }
 
         void pushProjectionMatrix(osg::RefMatrix* matrix) { _projectionStack.push_back(matrix); _eyePointDirty = true; }
         void popProjectionMatrix() { _projectionStack.pop_back(); _eyePointDirty = true; }
@@ -263,6 +266,9 @@ class OSGUTIL_EXPORT IntersectionVisitor : public osg::NodeVisitor
 
     protected:
 
+        typedef std::pair< osg::Viewport*, osg::StateAttribute::OverrideValue > ViewportOverrideValuePair;
+
+        ViewportOverrideValuePair extractViewportFromStateSet(osg::StateSet* pStateSet);
         inline bool enter(const osg::Node& node) { return _intersectorStack.empty() ? false : _intersectorStack.back()->enter(node); }
         inline void leave() { _intersectorStack.back()->leave(); }
         inline void intersect(osg::Drawable* drawable) { _intersectorStack.back()->intersect(*this, drawable); }
@@ -278,7 +284,8 @@ class OSGUTIL_EXPORT IntersectionVisitor : public osg::NodeVisitor
         osg::ref_ptr<ReadCallback> _readCallback;
 
         typedef std::list< osg::ref_ptr<osg::RefMatrix> > MatrixStack;
-        MatrixStack _windowStack;
+        typedef std::list< MatrixOverrideValuePair > MatrixOverrideValueStack;
+        MatrixOverrideValueStack _windowStack;
         MatrixStack _projectionStack;
         MatrixStack _viewStack;
         MatrixStack _modelStack;

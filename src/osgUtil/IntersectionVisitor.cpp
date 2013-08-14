@@ -201,26 +201,78 @@ void IntersectionVisitor::reset()
     }
 }
 
+void IntersectionVisitor::pushWindowMatrix(osg::RefMatrix* matrix, osg::StateAttribute::OverrideValue overrideValue)
+{
+    osg::ref_ptr<osg::RefMatrix> refMatrix = matrix;
+
+    if (_windowStack.empty())
+    {
+        _windowStack.push_back(MatrixOverrideValuePair(matrix, overrideValue));
+    }
+    else if ((_windowStack.back().second & osg::StateAttribute::OVERRIDE) && !(overrideValue & osg::StateAttribute::PROTECTED)) // check the existing override flag
+    {
+        // push existing back since override keeps the previous value.
+        _windowStack.push_back(_windowStack.back());
+    }
+    else
+    {
+        // no override on so simply push incoming pair to back.
+        _windowStack.push_back(MatrixOverrideValuePair(matrix, overrideValue));
+    }
+
+    _eyePointDirty = true;
+}
+
 void IntersectionVisitor::apply(osg::Node& node)
 {
-    // OSG_NOTICE<<"apply(Node&)"<<std::endl;
+    IntersectionVisitor::ViewportOverrideValuePair viewportOverrideValuePair = extractViewportFromStateSet(node.getStateSet());
 
-    if (!enter(node)) return;
-
-    // OSG_NOTICE<<"inside apply(Node&)"<<std::endl;
-
-    traverse(node);
-
-    leave();
+    if (viewportOverrideValuePair.first != NULL)
+    {
+        pushWindowMatrix(viewportOverrideValuePair.first, viewportOverrideValuePair.second);
+        push_clone();
+            if (enter(node) == true)
+            {
+                traverse(node);
+                leave();
+            }
+        pop_clone();
+        popWindowMatrix();
+    }
+    else
+    {
+        if (enter(node) == true)
+        {
+            traverse(node);
+            leave();
+        }
+    }
 }
 
 void IntersectionVisitor::apply(osg::Group& group)
 {
-    if (!enter(group)) return;
+    IntersectionVisitor::ViewportOverrideValuePair viewportOverrideValuePair = extractViewportFromStateSet(group.getStateSet());
 
-    traverse(group);
-
-    leave();
+    if (viewportOverrideValuePair.first != NULL)
+    {
+        pushWindowMatrix(viewportOverrideValuePair.first, viewportOverrideValuePair.second);
+        push_clone();
+            if (enter(group) == true)
+            {
+                traverse(group);
+                leave();
+            }
+        pop_clone();
+        popWindowMatrix();
+    }
+    else
+    {
+        if (enter(group) == true)
+        {
+            traverse(group);
+            leave();
+        }
+    }
 }
 
 void IntersectionVisitor::apply(osg::Geode& geode)
@@ -287,11 +339,28 @@ void IntersectionVisitor::apply(osg::Billboard& billboard)
 
 void IntersectionVisitor::apply(osg::LOD& lod)
 {
-    if (!enter(lod)) return;
+    IntersectionVisitor::ViewportOverrideValuePair viewportOverrideValuePair = extractViewportFromStateSet(lod.getStateSet());
 
-    traverse(lod);
-
-    leave();
+    if (viewportOverrideValuePair.first != NULL)
+    {
+        pushWindowMatrix(viewportOverrideValuePair.first, viewportOverrideValuePair.second);
+        push_clone();
+            if (enter(lod) == true)
+            {
+                traverse(lod);
+                leave();
+            }
+        pop_clone();
+        popWindowMatrix();
+    }
+    else
+    {
+        if (enter(lod) == true)
+        {
+            traverse(lod);
+            leave();
+        }
+    }
 }
 
 
@@ -481,7 +550,7 @@ void IntersectionVisitor::apply(osg::Camera& camera)
         model =  new osg::RefMatrix();
     }
 
-    if (camera.getViewport()) pushWindowMatrix( camera.getViewport() );
+    if (camera.getViewport()) pushWindowMatrix( camera.getViewport(), osg::StateAttribute::PROTECTED );
     pushProjectionMatrix(projection);
     pushViewMatrix(view);
     pushModelMatrix(model);
@@ -500,6 +569,20 @@ void IntersectionVisitor::apply(osg::Camera& camera)
     if (camera.getViewport()) popWindowMatrix();
 
     // leave();
+}
+
+IntersectionVisitor::ViewportOverrideValuePair IntersectionVisitor::extractViewportFromStateSet(osg::StateSet* pStateSet)
+{
+    if (pStateSet != NULL)
+    {
+        const osg::StateSet::RefAttributePair* pRefAttributePair = pStateSet->getAttributePair(osg::StateAttribute::VIEWPORT);
+        if (pRefAttributePair != NULL)
+        {
+            return IntersectionVisitor::ViewportOverrideValuePair(dynamic_cast<osg::Viewport*>(pRefAttributePair->first.get()), pRefAttributePair->second);
+        }
+    }
+
+    return IntersectionVisitor::ViewportOverrideValuePair(NULL, osg::StateAttribute::OFF);
 }
 
 osg::Vec3 IntersectionVisitor::getEyePoint() const
