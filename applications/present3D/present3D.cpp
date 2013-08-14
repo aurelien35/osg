@@ -11,7 +11,6 @@
 */
 
 #include <osg/Geometry>
-#include <osg/CameraNode>
 #include <osg/Texture2D>
 #include <osg/AutoTransform>
 #include <osg/Notify>
@@ -39,7 +38,7 @@
 #include <osgGA/StateSetManipulator>
 
 #include <osgPresentation/SlideEventHandler>
-#include <osgPresentation/SlideShowConstructor>
+#include <osgPresentation/Cursor>
 
 #include "ReadShowFile.h"
 #include "PointsEventHandler.h"
@@ -148,130 +147,6 @@ private:
 };
 
 
-class FollowMouseCallback: public osgGA::GUIEventHandler
-{
-    public:
-
-        FollowMouseCallback():
-            _mousePostition(0.5,0.5) {}
-
-        virtual bool handle(const osgGA::GUIEventAdapter& ea,osgGA::GUIActionAdapter& aa, osg::Object* object, osg::NodeVisitor* nv)
-        {
-            osg::AutoTransform* transform = dynamic_cast<osg::AutoTransform*>(object);
-            if (!transform) return false;
-
-            osg::NotifySeverity level = osg::INFO;
-
-            switch(ea.getEventType())
-            {
-                case(osgGA::GUIEventAdapter::PUSH):
-                case(osgGA::GUIEventAdapter::RELEASE):
-                case(osgGA::GUIEventAdapter::MOVE):
-                case(osgGA::GUIEventAdapter::DRAG):
-
-                    osg::notify(level)<<std::endl<<"ea.getGraphicsContext()="<<ea.getGraphicsContext()<<std::endl;
-                    osg::notify(level)<<"ea.getWindowWidth()="<<ea.getWindowWidth()<<std::endl;
-                    osg::notify(level)<<"ea.getWindowHeight()="<<ea.getWindowHeight()<<std::endl;
-                    osg::notify(level)<<"ea.getX()="<<ea.getX()<<std::endl;
-                    osg::notify(level)<<"ea.getXin()="<<ea.getXmin()<<std::endl;
-                    osg::notify(level)<<"ea.getXmax()="<<ea.getXmax()<<std::endl;
-                    osg::notify(level)<<"ea.getY()="<<ea.getY()<<std::endl;
-                    osg::notify(level)<<"ea.getYin()="<<ea.getYmin()<<std::endl;
-                    osg::notify(level)<<"ea.getYmax()="<<ea.getYmax()<<std::endl;
-
-                    _mousePostition.set(ea.getXnormalized(), ea.getYnormalized());
-                    break;
-
-                case(osgGA::GUIEventAdapter::FRAME):
-                {
-                    osgViewer::View* view = dynamic_cast<osgViewer::View*>(&aa);
-
-
-                    osg::Camera* camera = view->getCamera();
-                    osg::Matrix VP =  camera->getViewMatrix() * camera->getProjectionMatrix();
-
-                    osg::Matrix inverse_VP;
-                    inverse_VP.invert(VP);
-
-                    osg::Vec3d start_eye(_mousePostition.x(), _mousePostition.y(), 0.0);
-                    osg::Vec3d end_eye(_mousePostition.x(), _mousePostition.y(), 1.0);
-
-                    osg::Vec3d start_world = start_eye * inverse_VP;
-                    osg::Vec3d end_world = start_eye * inverse_VP;
-
-                    osg::notify(level)<<"start_world="<<start_world<<std::endl;
-                    osg::notify(level)<<"end_world="<<end_world<<std::endl;
-
-                    if (end_world.valid()) transform->setPosition(end_world);
-                    else
-                    {
-                        OSG_NOTICE<<"Ignoring invalid end_world position"<<std::endl;
-                    }
-
-                    break;
-                }
-                case(osgGA::GUIEventAdapter::KEYDOWN):
-                {
-                    if (ea.getKey()=='c')
-                    {
-                        for(unsigned int i=0; i< transform->getNumChildren(); ++i)
-                        {
-                            osg::Node* node = transform->getChild(i);
-                            node->setNodeMask(
-                                node->getNodeMask()!=0 ?
-                                0 :
-                                0xffffff);
-                        }
-                    }
-                    break;
-                }
-                default:
-                    break;
-            }
-            return false;
-        }
-
-        virtual void accept(osgGA::GUIEventHandlerVisitor& v)
-        {
-            v.visit(*this);
-        }
-
-        osg::Vec2d _mousePostition;
-};
-
-osg::Node* createCursorSubgraph(const std::string& filename, float size)
-{
-    osg::Geode* geode = new osg::Geode;
-
-    size = 20.0f;
-
-    osg::Geometry* geom = osg::createTexturedQuadGeometry(osg::Vec3(-size*0.5f,-size*0.5f,0.0f),osg::Vec3(size,0.0f,0.0f),osg::Vec3(0.0f,size,0.0f));
-    geom->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
-
-    osg::Image* image = osgDB::readImageFile(osgDB::findDataFile(filename));
-    if (image)
-    {
-        osg::StateSet* stateset = geom->getOrCreateStateSet();
-        stateset->setTextureAttributeAndModes(0, new osg::Texture2D(image),osg::StateAttribute::ON|osg::StateAttribute::PROTECTED);
-        stateset->setMode(GL_BLEND,osg::StateAttribute::ON|osg::StateAttribute::PROTECTED);
-        // stateset->setMode(GL_DEPTH_TEST,osg::StateAttribute::OFF);
-        stateset->setRenderBinDetails(1000, "DepthSortedBin");
-    }
-
-    geode->addDrawable(geom);
-
-    osg::AutoTransform* transform = new osg::AutoTransform;
-    transform->setAutoRotateMode(osg::AutoTransform::ROTATE_TO_CAMERA);
-    transform->setAutoScaleToScreen(true);
-
-    transform->addChild(geode);
-
-    transform->setEventCallback(new FollowMouseCallback());
-
-    return transform;
-
-}
-
 
 enum P3DApplicationType
 {
@@ -300,7 +175,10 @@ void processLoadedModel(osg::ref_ptr<osg::Node>& loadedModel, int optimizer_opti
     {
         osg::ref_ptr<osg::Group> group = new osg::Group;
         group->addChild(loadedModel.get());
-        group->addChild(createCursorSubgraph(cursorFileName, 0.05f));
+
+        OSG_NOTICE<<"Creating Cursor"<<std::endl;
+        group->addChild(new osgPresentation::Cursor(cursorFileName, 20.0f));
+
         loadedModel = group;
     }
 }
