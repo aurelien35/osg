@@ -10,8 +10,9 @@
  * include LICENSE.txt for more details.
 */
 
-#include <osgPresentation/SlideEventHandler>
-#include <osgPresentation/SlideShowConstructor>
+#include <osgPresentation/deprecated/SlideEventHandler>
+#include <osgPresentation/deprecated/SlideShowConstructor>
+#include <osgPresentation/deprecated/AnimationMaterial>
 
 #include <osg/AnimationPath>
 #include <osg/Transform>
@@ -27,7 +28,6 @@
 
 #include <osgGA/AnimationPathManipulator>
 
-#include <osgPresentation/AnimationMaterial>
 
 #include <iostream>
 
@@ -339,7 +339,7 @@ struct CallbackOperator : public ObjectOperator
         }
         else if (nc)
         {
-            OSG_NOTICE<<"Need to pause callback : "<<nc->className()<<std::endl;
+            OSG_INFO<<"Need to pause callback : "<<nc->className()<<std::endl;
         }
 
     }
@@ -371,7 +371,7 @@ struct CallbackOperator : public ObjectOperator
         }
         else
         {
-            OSG_NOTICE<<"Need to reset callback : "<<nc->className()<<std::endl;
+            OSG_INFO<<"Need to reset callback : "<<nc->className()<<std::endl;
         }
     }
 
@@ -482,12 +482,12 @@ public:
         {
             if ((_objectsHandled[la]++)==0)
             {
-                OSG_NOTICE<<"LayerAttributeOperator for "<<la<<" required, assigning one."<<std::endl;
+                OSG_INFO<<"LayerAttributeOperator for "<<la<<" required, assigning one."<<std::endl;
                 _operatorList.insert(new LayerAttributesOperator(&node, la));
             }
             else
             {
-                OSG_NOTICE<<"LayerAttributeOperator for "<<la<<" not required, as one already assigned."<<std::endl;
+                OSG_INFO<<"LayerAttributeOperator for "<<la<<" not required, as one already assigned."<<std::endl;
             }
         }
 

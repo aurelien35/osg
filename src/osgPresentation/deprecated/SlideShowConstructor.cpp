@@ -10,7 +10,11 @@
  * include LICENSE.txt for more details.
 */
 
-#include <osgPresentation/SlideShowConstructor>
+#include <osgPresentation/deprecated/SlideShowConstructor>
+#include <osgPresentation/deprecated/AnimationMaterial>
+#include <osgPresentation/deprecated/PickEventHandler>
+#include <osgPresentation/deprecated/KeyEventHandler>
+
 
 #include <osg/Geometry>
 #include <osg/PolygonOffset>
@@ -50,10 +54,6 @@
 
 #include <sstream>
 #include <algorithm>
-
-#include <osgPresentation/AnimationMaterial>
-#include <osgPresentation/PickEventHandler>
-#include <osgPresentation/KeyEventHandler>
 
 #include <osgManipulator/TabBoxDragger>
 #include <osgManipulator/TabBoxTrackballDragger>
@@ -538,7 +538,7 @@ void SlideShowConstructor::addToCurrentLayer(osg::Node* subgraph)
     {
         if (_layerToApplyEventCallbackTo==0 || _currentLayer==_layerToApplyEventCallbackTo)
         {
-            OSG_NOTICE<<"Assigning event callbacks."<<std::endl;
+            OSG_INFO<<"Assigning event callbacks."<<std::endl;
 
             for(EventHandlerList::iterator itr = _currentEventCallbacksToApply.begin();
                 itr != _currentEventCallbacksToApply.end();
@@ -1004,7 +1004,11 @@ osg::Image* SlideShowConstructor::readImage(const std::string& filename, const I
         filenames.push_back(foundFile);
     }
 
-    if (filenames.empty()) return 0;
+    if (filenames.empty())
+    {
+        OSG_NOTICE<<"Could not fine image file: "<<filename<<std::endl;
+        return 0;
+    }
 
     if (filenames.size()==1)
     {
@@ -1105,6 +1109,10 @@ osg::Image* SlideShowConstructor::readImage(const std::string& filename, const I
         if (imageData.delayTime>0.0) image->setUserValue("delay",imageData.delayTime);
         if (imageData.startTime>0.0) image->setUserValue("start",imageData.startTime);
         if (imageData.stopTime>0.0) image->setUserValue("stop",imageData.stopTime);
+    }
+    else
+    {
+        OSG_NOTICE<<"Could not load image file: "<<filename<<std::endl;
     }
     return image.release();
 }
@@ -1982,6 +1990,10 @@ void SlideShowConstructor::addModel(const std::string& filename, const PositionD
     if (subgraph.valid())
     {
         addModel(subgraph.get(), positionData, modelData);
+    }
+    else
+    {
+        OSG_NOTICE<<"Could not loaded model file : "<<filename<<std::endl;
     }
 
     OSG_INFO<<"end of SlideShowConstructor::addModel("<<filename<<")"<<std::endl<<std::endl;
