@@ -105,7 +105,8 @@ FBOExtensions::FBOExtensions(unsigned int contextID)
 #if !defined(OSG_GLES1_AVAILABLE) && !defined(OSG_GLES2_AVAILABLE)
     _supported = _supported &&
         glFramebufferTexture1D != 0 &&
-        glFramebufferTexture3D != 0;
+        glFramebufferTexture3D != 0 &&
+        isGLExtensionOrVersionSupported(contextID, "GL_EXT_framebuffer_object",3.0f);
 #endif
 
     LOAD_FBO_EXT(glBlitFramebuffer);
@@ -918,9 +919,13 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
     if (_drawBuffers.size() > 0)
     {
         GL2Extensions *gl2e = GL2Extensions::Get(state.getContextID(), true );
-        if (gl2e)
+        if (gl2e && gl2e->isDrawBuffersSupported())
         {
             gl2e->glDrawBuffers(_drawBuffers.size(), &(_drawBuffers[0]));
+        }
+        else
+        {
+            OSG_WARN <<"Warning: FrameBufferObject: could not set draw buffers, glDrawBuffers is not supported!" << std::endl;
         }
     }
 
@@ -941,7 +946,7 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
                     {
                         OSG_WARN <<
                             "Warning: FrameBufferObject: could not attach PACKED_DEPTH_STENCIL_BUFFER, "
-                            "EXT_packed_depth_stencil is not supported !" << std::endl;
+                            "EXT_packed_depth_stencil is not supported!" << std::endl;
                     }
                     break;
 

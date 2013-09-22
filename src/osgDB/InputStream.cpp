@@ -488,6 +488,51 @@ osg::Array* InputStream::readArray()
             array = va;
         }
         break;
+
+    case ID_VEC2I_ARRAY:
+        {
+            osg::Vec2iArray* va = new osg::Vec2iArray;
+            readArrayImplementation( va, 2, INT_SIZE );
+            array = va;
+        }
+        break;
+    case ID_VEC3I_ARRAY:
+        {
+            osg::Vec3iArray* va = new osg::Vec3iArray;
+            readArrayImplementation( va, 3, INT_SIZE );
+            array = va;
+        }
+        break;
+    case ID_VEC4I_ARRAY:
+        {
+            osg::Vec4iArray* va = new osg::Vec4iArray;
+            readArrayImplementation( va, 4, INT_SIZE );
+            array = va;
+        }
+        break;
+
+    case ID_VEC2UI_ARRAY:
+        {
+            osg::Vec2uiArray* va = new osg::Vec2uiArray;
+            readArrayImplementation( va, 2, INT_SIZE );
+            array = va;
+        }
+        break;
+    case ID_VEC3UI_ARRAY:
+        {
+            osg::Vec3uiArray* va = new osg::Vec3uiArray;
+            readArrayImplementation( va, 3, INT_SIZE );
+            array = va;
+        }
+        break;
+    case ID_VEC4UI_ARRAY:
+        {
+            osg::Vec4uiArray* va = new osg::Vec4uiArray;
+            readArrayImplementation( va, 4, INT_SIZE );
+            array = va;
+        }
+        break;
+
     default:
         throwException( "InputStream::readArray(): Unsupported array type." );
     }
@@ -900,7 +945,7 @@ void InputStream::setWrapperSchema( const std::string& name, const std::string& 
     }
 
     StringList schema, methods, keyAndValue;
-    std::vector<int> types;
+    ObjectWrapper::TypeList types;
     split( properties, schema );
     for ( StringList::iterator itr=schema.begin(); itr!=schema.end(); ++itr )
     {
@@ -908,12 +953,12 @@ void InputStream::setWrapperSchema( const std::string& name, const std::string& 
         if ( keyAndValue.size()>1 )
         {
             methods.push_back( keyAndValue.front() );
-            types.push_back( atoi(keyAndValue.back().c_str()) );
+            types.push_back( static_cast<BaseSerializer::Type>(atoi(keyAndValue.back().c_str())) );
         }
         else
         {
             methods.push_back( *itr );
-            types.push_back( 0 );
+            types.push_back( BaseSerializer::RW_UNDEFINED );
         }
         keyAndValue.clear();
     }

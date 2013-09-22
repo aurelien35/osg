@@ -84,12 +84,11 @@ class Intersector : public osg::Referenced
 
         inline bool reachedLimit() { return _intersectionLimit == LIMIT_ONE && containsIntersections(); }
 
-   protected:
+protected:
 
-        CoordinateFrame _coordinateFrame;
+        CoordinateFrame   _coordinateFrame;
         IntersectionLimit _intersectionLimit;
-        unsigned int    _disabledCount;
-
+        unsigned int      _disabledCount;
 };
 
 

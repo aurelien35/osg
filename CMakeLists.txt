@@ -49,7 +49,7 @@ PROJECT(OpenSceneGraph)
 SET(OPENSCENEGRAPH_MAJOR_VERSION 3)
 SET(OPENSCENEGRAPH_MINOR_VERSION 3)
 SET(OPENSCENEGRAPH_PATCH_VERSION 0)
-SET(OPENSCENEGRAPH_SOVERSION 99)
+SET(OPENSCENEGRAPH_SOVERSION 110)
 
 # set to 0 when not a release candidate, non zero means that any generated
 # svn tags will be treated as release candidates of given number
@@ -535,8 +535,13 @@ ELSE()
     FIND_PACKAGE(GtkGl)
     FIND_PACKAGE(DirectInput)
     FIND_PACKAGE(NVTT)
-    FIND_PACKAGE(Asio)
+    IF (NOT WIN32)
+        FIND_PACKAGE(Asio)
+    ENDIF()
     FIND_PACKAGE(ZeroConf)
+    FIND_PACKAGE(Lua51)
+    FIND_PACKAGE(V8)
+    FIND_PACKAGE(PythonLibs)
 ENDIF()
 
 IF(CMAKE_MAJOR_VERSION EQUAL 2 AND CMAKE_MINOR_VERSION LESS 8)

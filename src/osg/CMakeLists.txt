@@ -38,7 +38,6 @@ SET(TARGET_H
     ${HEADER_PATH}/BufferIndexBinding
     ${HEADER_PATH}/BufferObject
     ${HEADER_PATH}/Camera
-    ${HEADER_PATH}/CameraNode
     ${HEADER_PATH}/CameraView
     ${HEADER_PATH}/ClampColor
     ${HEADER_PATH}/ClearNode
@@ -138,6 +137,7 @@ SET(TARGET_H
     ${HEADER_PATH}/RenderInfo
     ${HEADER_PATH}/SampleMaski
     ${HEADER_PATH}/Scissor
+    ${HEADER_PATH}/ScriptEngine
     ${HEADER_PATH}/Sequence
     ${HEADER_PATH}/ShadeModel
     ${HEADER_PATH}/Shader
@@ -324,6 +324,7 @@ SET(TARGET_SRC
     Referenced.cpp
     SampleMaski.cpp
     Scissor.cpp
+    ScriptEngine.cpp
     Sequence.cpp
     ShadeModel.cpp
     Shader.cpp
@@ -398,13 +399,13 @@ SET(TARGET_SRC
 SET(TARGET_LIBRARIES OpenThreads)
 
 SET(TARGET_EXTERNAL_LIBRARIES
-    ${CMAKE_THREAD_LIBS_INIT}    
-    ${MATH_LIBRARY} 
-    ${RT_LIBRARY} 
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${MATH_LIBRARY}
+    ${RT_LIBRARY}
     ${DL_LIBRARY}
 )
 
-#LINK_INTERNAL(${LIB_NAME}     
+#LINK_INTERNAL(${LIB_NAME}
 #    OpenThreads
 #)
 #LINK_EXTERNAL(${LIB_NAME} ${CMAKE_THREAD_LIBS_INIT}    ${MATH_LIBRARY} ${RT_LIBRARY} ${DL_LIBRARY})

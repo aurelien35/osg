@@ -956,7 +956,10 @@ void State::initializeExtensionProcs()
     if ( osg::getGLVersionNumber() >= 2.0 || osg::isGLExtensionSupported(_contextID,"GL_ARB_vertex_shader") || OSG_GLES2_FEATURES)
     {
         glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS,&_glMaxTextureUnits);
-        glGetIntegerv(GL_MAX_TEXTURE_COORDS,&_glMaxTextureCoords);
+        if(OSG_GLES2_FEATURES)       
+            _glMaxTextureCoords = _glMaxTextureUnits;
+        else
+            glGetIntegerv(GL_MAX_TEXTURE_COORDS,&_glMaxTextureCoords);
     }
     else if ( osg::getGLVersionNumber() >= 1.3 ||
                                  osg::isGLExtensionSupported(_contextID,"GL_ARB_multitexture") ||
@@ -1367,6 +1370,9 @@ namespace State_Utils
 {
     bool replace(std::string& str, const std::string& original_phrase, const std::string& new_phrase)
     {
+        // Prevent infinite loop : if original_phrase is empty, do nothing and return false
+        if (original_phrase.empty()) return false;
+
         bool replacedStr = false;
         std::string::size_type pos = 0;
         while((pos=str.find(original_phrase, pos))!=std::string::npos)
