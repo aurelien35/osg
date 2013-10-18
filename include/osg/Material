@@ -112,7 +112,7 @@ class OSG_EXPORT Material : public StateAttribute
             OFF
         };
 
-        inline void setColorMode(ColorMode mode);
+        void setColorMode(ColorMode mode);
         inline ColorMode getColorMode() const { return _colorMode; }
         static int colorModeToUniformValue(ColorMode mode);
 
