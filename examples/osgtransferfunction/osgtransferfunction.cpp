@@ -18,16 +18,332 @@
 
 #include <osg/Geode>
 #include <osg/Geometry>
+#include <osg/ImageUtils>
+#include <osg/MatrixTransform>
+#include <osg/PositionAttitudeTransform>
+#include <osg/ComputeBoundsVisitor>
 #include <osg/io_utils>
 
 #include <osgDB/ReadFile>
 #include <osgDB/WriteFile>
 #include <osgDB/FileUtils>
 
+#include <osgVolume/Volume>
 #include <osgVolume/VolumeTile>
 
 #include <osgViewer/Viewer>
 
+
+class Histogram
+{
+public:
+    Histogram() {}
+
+    void analyse(const osg::Image* image, double interval=0.0);
+
+    void insertZeroBoundaryValues(float xMin=FLT_MAX, float xMax=-FLT_MAX);
+
+    osg::Node* createGraphicalRepresentation();
+
+    typedef std::map<float, float> ValueMap;
+
+    ValueMap& getValueMap() { return _valueMap; }
+
+protected:
+
+    ValueMap _valueMap;
+};
+
+struct PopulateHistogram
+{
+
+    PopulateHistogram(Histogram::ValueMap& valueMap):
+        _histogram(valueMap) {}
+
+    float cast(char v) { return v; }
+    float cast(unsigned char v) { return v; }
+    float cast(short v) { return v; }
+    float cast(unsigned short v) { return v; }
+    float cast(int v) { return v; }
+    float cast(unsigned int v) { return v; }
+    float cast(float v) { return v; }
+    float cast(double v) { return v; }
+
+    Histogram::ValueMap& _histogram;
+
+    void update(int v)
+    {
+        _histogram[v]+=1.0;
+    }
+
+    void normalize()
+    {
+        double maxValue = 0;
+        for(Histogram::ValueMap::iterator itr = _histogram.begin();
+            itr != _histogram.end();
+            ++itr)
+        {
+            if (itr->second>maxValue) maxValue = itr->second;
+        }
+
+        for(Histogram::ValueMap::iterator itr = _histogram.begin();
+            itr != _histogram.end();
+            ++itr)
+        {
+            itr->second /= maxValue;
+        }
+    }
+
+    void luminance(float l) { update(l); }
+    void alpha(float a) { update(a); }
+    void luminance_alpha(float l, float a) { update(l); }
+    void rgb(float r, float g, float b) { update(r); }
+    void rgba(float r, float g, float b, float a) { update(a); }
+};
+
+void Histogram::analyse(const osg::Image* image, double interval)
+{
+    PopulateHistogram populateHistogram(_valueMap);
+    readImage(image, populateHistogram);
+    populateHistogram.normalize();
+
+    for(Histogram::ValueMap::iterator itr = populateHistogram._histogram.begin();
+        itr != populateHistogram._histogram.end();
+        ++itr)
+    {
+        OSG_NOTICE<<"  "<<itr->first<<", "<<itr->second<<std::endl;
+    }
+}
+
+void Histogram::insertZeroBoundaryValues(float xMin, float xMax)
+{
+    if (_valueMap.empty())
+    {
+        if (xMin<xMax)
+        {
+            _valueMap[xMin] = 0.0;
+            _valueMap[xMax] = 0.0;
+        }
+        return;
+    }
+
+    float interval = 1.0f;
+    float min_gap_for_single_insertion = interval*1.5;
+    float min_gap_for_double_insertion = interval*2.5;
+
+    if (xMin<_valueMap.begin()->first)
+    {
+        _valueMap[xMin] = 0.0;
+    }
+
+    if (xMax>_valueMap.rbegin()->first)
+    {
+        _valueMap[xMax] = 0.0;
+    }
+
+    ValueMap::iterator itr = _valueMap.begin();
+    float previous_x = itr->first;
+    for(;
+        itr != _valueMap.end();
+        ++itr)
+    {
+        float current_x = itr->first;
+        float gap = current_x-previous_x;
+        if (gap>min_gap_for_double_insertion)
+        {
+            _valueMap[previous_x+interval] = 0.0f;
+            _valueMap[current_x-interval] = 0.0f;
+        }
+        else if  (gap>min_gap_for_single_insertion)
+        {
+            _valueMap[(previous_x+current_x)*0.5]=0.0f;
+        }
+        previous_x = current_x;
+    }
+}
+
+osg::Node* Histogram::createGraphicalRepresentation()
+{
+    if (_valueMap.empty()) return 0;
+
+    osg::ref_ptr<osg::MatrixTransform> transform = new osg::MatrixTransform;
+
+    float xMin = _valueMap.begin()->first;
+    float xMax = _valueMap.rbegin()->first;
+
+    float depth = 0.0f;
+    float yMax = 0.0f;
+
+    // find yMax
+    for(ValueMap::iterator itr = _valueMap.begin();
+        itr != _valueMap.end();
+        ++itr)
+    {
+        float y = itr->second;
+        if (y>yMax) yMax = y;
+    }
+
+    float xScale = 1.0f/(xMax-xMin);
+    float yScale = 1.0f/yMax;
+
+    {
+        osg::ref_ptr<osg::Geode> geode = new osg::Geode;
+        transform->addChild(geode.get());
+
+        osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry;
+        geode->addDrawable(geometry.get());
+        geode->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+        geode->getOrCreateStateSet()->setMode(GL_BLEND, osg::StateAttribute::ON);
+
+        osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array;
+        geometry->setVertexArray(vertices.get());
+
+        osg::ref_ptr<osg::Vec4Array> colours = new osg::Vec4Array;
+        geometry->setColorArray(colours.get(), osg::Array::BIND_PER_PRIMITIVE_SET);
+        colours->push_back(osg::Vec4(1.0,1.0,1.0,1.0));
+        colours->push_back(osg::Vec4(1.0,1.0,1.0,1.0));
+        colours->push_back(osg::Vec4(1.0,1.0,1.0,0.1));
+
+
+        unsigned numColumnsRequired = _valueMap.size();
+        vertices->reserve(numColumnsRequired*3);
+        for(ValueMap::iterator itr = _valueMap.begin();
+            itr != _valueMap.end();
+            ++itr)
+        {
+            float x = itr->first;
+            float y = itr->second;
+
+            vertices->push_back(osg::Vec3(x*xScale, 0.0f, depth));
+            vertices->push_back(osg::Vec3(x*xScale, y*yScale, depth));
+            vertices->push_back(osg::Vec3(x*xScale, yMax*yScale, depth));
+        }
+
+        osg::ref_ptr<osg::DrawElementsUShort> background_primitives = new osg::DrawElementsUShort(GL_TRIANGLE_STRIP);
+        osg::ref_ptr<osg::DrawElementsUShort> historgram_primitives = new osg::DrawElementsUShort(GL_TRIANGLE_STRIP);
+        osg::ref_ptr<osg::DrawElementsUShort> outline_primitives = new osg::DrawElementsUShort(GL_LINE_STRIP);
+        for(unsigned int i=0; i<numColumnsRequired; ++i)
+        {
+            int iv = i*3;
+
+            background_primitives->push_back(iv+2);
+            background_primitives->push_back(iv+1);
+
+            historgram_primitives->push_back(iv+1);
+            historgram_primitives->push_back(iv+0);
+
+            outline_primitives->push_back(iv+1);
+
+        }
+
+        geometry->addPrimitiveSet(outline_primitives.get());
+        geometry->addPrimitiveSet(historgram_primitives.get());
+        geometry->addPrimitiveSet(background_primitives.get());
+    }
+
+    //transform->setMatrix(osg::Matrix::scale(xScale/(maxX-minY), yScale/(yMax), 1.0f));
+
+    transform->setMatrix(osg::Matrix::scale(2.0,1.0,1.0)*osg::Matrix::rotate(osg::DegreesToRadians(90.0), osg::Vec3d(1.0,0.0,0.0)));
+
+    return transform.release();
+}
+
+osg::Node* createGraphicalRepresentation(osg::TransferFunction1D* tf)
+{
+    typedef osg::TransferFunction1D::ColorMap ColorMap;
+    ColorMap& colorMap = tf->getColorMap();
+    if (colorMap.empty()) return 0;
+
+    osg::ref_ptr<osg::MatrixTransform> transform = new osg::MatrixTransform;
+
+    float xMin = colorMap.begin()->first;
+    float xMax = colorMap.rbegin()->first;
+
+    float depth = 0.0f;
+    float yMax = 0.0f;
+
+    // find yMax
+    for(ColorMap::iterator itr = colorMap.begin();
+        itr != colorMap.end();
+        ++itr)
+    {
+        float y = itr->second[3];
+        if (y>yMax) yMax = y;
+    }
+
+    float xScale = 1.0f/(xMax-xMin);
+    float yScale = 1.0f/yMax;
+
+    {
+        osg::ref_ptr<osg::Geode> geode = new osg::Geode;
+        transform->addChild(geode.get());
+
+        osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry;
+        geode->addDrawable(geometry.get());
+        geode->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+        geode->getOrCreateStateSet()->setMode(GL_BLEND, osg::StateAttribute::ON);
+
+        osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array;
+        geometry->setVertexArray(vertices.get());
+
+        osg::ref_ptr<osg::Vec4Array> colours = new osg::Vec4Array;
+        geometry->setColorArray(colours.get(), osg::Array::BIND_PER_VERTEX);
+
+        osg::Vec4 background_color(1.0f, 1.0f, 1.0f, 0.1f);
+
+        unsigned numColumnsRequired = colorMap.size();
+        vertices->reserve(numColumnsRequired*3);
+        for(ColorMap::iterator itr = colorMap.begin();
+            itr != colorMap.end();
+            ++itr)
+        {
+            float x = itr->first;
+            osg::Vec4 color = itr->second;
+
+            float y = itr->second[3];
+            color[3] = 1.0f;
+
+            vertices->push_back(osg::Vec3(x*xScale, 0.0f, depth));
+            colours->push_back(color);
+
+            vertices->push_back(osg::Vec3(x*xScale, y*yScale, depth));
+            colours->push_back(color);
+
+            vertices->push_back(osg::Vec3(x*xScale, y*yScale, depth));
+            colours->push_back(background_color);
+
+            vertices->push_back(osg::Vec3(x*xScale, yMax*yScale, depth));
+            colours->push_back(background_color);
+        }
+
+        osg::ref_ptr<osg::DrawElementsUShort> background_primitives = new osg::DrawElementsUShort(GL_TRIANGLE_STRIP);
+        osg::ref_ptr<osg::DrawElementsUShort> historgram_primitives = new osg::DrawElementsUShort(GL_TRIANGLE_STRIP);
+        osg::ref_ptr<osg::DrawElementsUShort> outline_primitives = new osg::DrawElementsUShort(GL_LINE_STRIP);
+        for(unsigned int i=0; i<numColumnsRequired; ++i)
+        {
+            int iv = i*4;
+
+            background_primitives->push_back(iv+3);
+            background_primitives->push_back(iv+2);
+
+            historgram_primitives->push_back(iv+1);
+            historgram_primitives->push_back(iv+0);
+
+            outline_primitives->push_back(iv+1);
+
+        }
+
+        geometry->addPrimitiveSet(outline_primitives.get());
+        geometry->addPrimitiveSet(historgram_primitives.get());
+        geometry->addPrimitiveSet(background_primitives.get());
+    }
+
+    //transform->setMatrix(osg::Matrix::scale(xScale/(maxX-minY), yScale/(yMax), 1.0f));
+
+    transform->setMatrix(osg::Matrix::scale(2.0,1.0,1.0)*osg::Matrix::rotate(osg::DegreesToRadians(90.0), osg::Vec3d(1.0,0.0,0.0)));
+
+    return transform.release();
+}
 
 
 osg::TransferFunction1D* readTransferFunctionFile(const std::string& filename, float colorScale=1.0f)
@@ -66,6 +382,78 @@ osg::TransferFunction1D* readTransferFunctionFile(const std::string& filename, f
     return tf;
 }
 
+class FindTransferFunctionPropertyVisitor : public osgVolume::PropertyVisitor
+{
+public:
+
+    osg::ref_ptr<osgVolume::TransferFunctionProperty> _tfp;
+
+#if 0
+    virtual void apply(osgVolume::SwitchProperty& sp)
+    {
+        OSG_NOTICE<<"Found SwitchProperty"<<std::endl;
+        apply(static_cast<osgVolume::CompositeProperty&>(sp));
+    }
+
+    virtual void apply(osgVolume::CompositeProperty& cp)
+    {
+        OSG_NOTICE<<"Found CompositeProperty"<<std::endl;
+        for(unsigned int i=0; i<cp.getNumProperties(); ++i)
+        {
+            cp.getProperty(i)->accept(*this);
+        }
+    }
+#endif
+    virtual void apply(osgVolume::TransferFunctionProperty& tfp)
+    {
+        OSG_NOTICE<<"Found TransferFunctionProperty "<<&tfp<<std::endl;
+        _tfp = &tfp;
+    }
+};
+
+
+class InsertTransferFunctionPropertyVisitor : public osgVolume::PropertyVisitor
+{
+public:
+
+    InsertTransferFunctionPropertyVisitor(osg::TransferFunction1D* tf)
+    {
+        _tfp = new osgVolume::TransferFunctionProperty(tf);
+    }
+
+    osg::ref_ptr<osgVolume::TransferFunctionProperty> _tfp;
+
+    virtual void apply(osgVolume::SwitchProperty& sp)
+    {
+        OSG_NOTICE<<"Found SwitchProperty"<<std::endl;
+        for(unsigned int i=0; i<sp.getNumProperties(); ++i)
+        {
+            sp.getProperty(i)->accept(*this);
+        }
+    }
+
+    virtual void apply(osgVolume::CompositeProperty& cp)
+    {
+        OSG_NOTICE<<"Found CompositeProperty, inserting transfer function"<<std::endl;
+        if (_tfp.valid()) cp.addProperty(_tfp.get());
+    }
+};
+
+class FindVolumeTiles : public osg::NodeVisitor
+{
+public:
+    FindVolumeTiles(): osg::NodeVisitor(osg::NodeVisitor::TRAVERSE_ALL_CHILDREN) {}
+
+    typedef std::vector< osg::ref_ptr<osgVolume::VolumeTile> > Tiles;
+    Tiles _tiles;
+
+    void apply(osg::Group& group)
+    {
+        osgVolume::VolumeTile* tile = dynamic_cast<osgVolume::VolumeTile*>(&group);
+        if (tile) _tiles.push_back(tile);
+        else traverse(group);
+    }
+};
 
 int main(int argc, char ** argv)
 {
@@ -80,36 +468,135 @@ int main(int argc, char ** argv)
         tf = readTransferFunctionFile(filename);
     }
 
-    osg::ref_ptr<osgVolume::Layer> layer;
+    bool createHistorgram = arguments.read("--histogram");
 
     osg::ref_ptr<osg::Node> model = osgDB::readNodeFiles(arguments);
 
-    osgVolume::VolumeTile* volumeTile = dynamic_cast<osgVolume::VolumeTile*>(model.get());
-    if (!volumeTile)
+    typedef std::vector< osg::ref_ptr<osg::Node> > Nodes;
+    Nodes nodes;
+
+    if (!model && !tf)
     {
-        OSG_NOTICE<<"Please specify volume dataset on command line."<<std::endl;
+        OSG_NOTICE<<"Please specify dataset on command line."<<std::endl;
         return 1;
     }
 
-    layer = volumeTile->getLayer();
+    osgVolume::ImageLayer* imageLayer = 0;
 
-    if (!layer)
+
+    if (model.valid())
     {
-        OSG_NOTICE<<"No layer loaded."<<std::endl;
+        osg::ref_ptr<osgVolume::VolumeTile> volumeTile = dynamic_cast<osgVolume::VolumeTile*>(model.get());
+        if (volumeTile.valid())
+        {
+            OSG_NOTICE<<"Inserting Volume above VolumeTile."<<std::endl;
+            osg::ref_ptr<osgVolume::Volume> volume = new osgVolume::Volume;
+            volume->addChild(model.get());
+            model = volume.get();
+        }
+
+        nodes.push_back(model.get());
+
+        FindVolumeTiles fvt;
+        model->accept(fvt);
+
+        if (!fvt._tiles.empty()) imageLayer = dynamic_cast<osgVolume::ImageLayer*>(fvt._tiles[0]->getLayer());
+    }
+
+
+    if (createHistorgram && imageLayer)
+    {
+        Histogram histogram;
+        histogram.analyse(imageLayer->getImage());
+        nodes.push_back(histogram.createGraphicalRepresentation());
+    }
+
+    if (imageLayer)
+    {
+        osgVolume::Property* property = imageLayer->getProperty();
+        if (property)
+        {
+            FindTransferFunctionPropertyVisitor ftfpv;
+            property->accept(ftfpv);
+
+            if (ftfpv._tfp.valid())
+            {
+                if (tf.valid())
+                {
+                    OSG_NOTICE<<"Need to replace volumes transfer function"<<std::endl;
+                    ftfpv._tfp->setTransferFunction(tf.get());
+                }
+                else
+                {
+                    OSG_NOTICE<<"Using volumes transfer function"<<std::endl;
+                    tf = dynamic_cast<osg::TransferFunction1D*>(ftfpv._tfp->getTransferFunction());
+                }
+            }
+            else if (tf.valid())
+            {
+                // No exisitng trasfer function but need to assign one
+                OSG_NOTICE<<"Need to assign transfer function to CompositeProperty"<<std::endl;
+                InsertTransferFunctionPropertyVisitor itfpv(tf.get());
+                property->accept(itfpv);
+            }
+        }
+        else if (tf.valid())
+        {
+            OSG_NOTICE<<"Assign transfer function directly"<<std::endl;
+            imageLayer->setProperty(new osgVolume::TransferFunctionProperty(tf.get()));
+        }
+    }
+
+    if (tf.valid())
+    {
+        nodes.push_back(createGraphicalRepresentation(tf.get()));
+    }
+
+    if (nodes.empty())
+    {
+        OSG_NOTICE<<"Please specify dataset on command line."<<std::endl;
         return 1;
     }
 
-    osg::ref_ptr<osgVolume::ImageLayer> imageLayer = dynamic_cast<osgVolume::ImageLayer*>(layer.get());
-
-    osg::ref_ptr<osg::Image> image = imageLayer.valid() ? imageLayer->getImage() : 0;
-
-    if (!image)
+    if (nodes.size()==1) viewer.setSceneData(nodes[0].get());
+    else
     {
-        OSG_NOTICE<<"No image found."<<std::endl;
+        osg::Vec3d position(0.0,0.0,0.0);
+
+        osg::ref_ptr<osg::Group> group = new osg::Group;
+
+        for(Nodes::iterator itr = nodes.begin();
+            itr != nodes.end();
+            ++itr)
+        {
+            osg::ref_ptr<osg::Node> child = *itr;
+            if (!child) continue;
+#if 0
+            osg::ComputeBoundsVisitor cbv;
+            child->accept(cbv);
+
+            osg::BoundingBox bb = cbv.getBoundingBox();
+            double scale = 1.0/(bb.xMax()-bb.xMin());
+#endif
+            osg::BoundingSphere bb = child->getBound();
+            double scale = 0.7/bb.radius();
+
+            osg::ref_ptr<osg::PositionAttitudeTransform> pat = new osg::PositionAttitudeTransform;
+            pat->addChild(child.get());
+            pat->setPosition(position);
+            pat->setPivotPoint(bb.center());
+            pat->setScale(osg::Vec3d(scale, scale, scale));
+            position.x() += 1.1;
+
+            group->addChild(pat.get());
+        }
+
+        viewer.setSceneData(group.get());
     }
 
 
-    viewer.setSceneData( model.get() );
+
+    osgDB::writeNodeFile(*viewer.getSceneData(),"graph.osgt");
 
     return viewer.run();
 }
