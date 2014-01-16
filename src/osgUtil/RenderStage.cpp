@@ -527,7 +527,6 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
                 fbo_supported = false;
                 GLuint fboId = state.getGraphicsContext() ? state.getGraphicsContext()->getDefaultFboId() : 0;
                 fbo_ext->glBindFramebuffer(GL_FRAMEBUFFER_EXT, fboId);
-                state.setCurrentFrameBufferObjectId(osg::FrameBufferObject::READ_DRAW_FRAMEBUFFER, fboId);
                 fbo = 0;
 
                 // clean up.
@@ -1086,7 +1085,6 @@ void RenderStage::drawInner(osg::RenderInfo& renderInfo,RenderLeaf*& previous, b
             // switch off the frame buffer object
             GLuint fboId = state.getGraphicsContext() ? state.getGraphicsContext()->getDefaultFboId() : 0;
             fbo_ext->glBindFramebuffer(GL_FRAMEBUFFER_EXT, fboId);
-            state.setCurrentFrameBufferObjectId(osg::FrameBufferObject::READ_DRAW_FRAMEBUFFER, fboId);
         }
 
         doCopyTexture = true;

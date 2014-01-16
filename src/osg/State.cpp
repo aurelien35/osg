@@ -17,7 +17,6 @@
 #include <osg/GLExtensions>
 #include <osg/Drawable>
 #include <osg/ApplicationUsage>
-#include <osg/FrameBufferObject>
 
 #include <sstream>
 
@@ -43,8 +42,6 @@ State::State():
 {
     _graphicsContext = 0;
     _contextID = 0;
-    _currentReadFboId = 0;
-    _currentDrawFboId = 0;
 
     _shaderCompositionEnabled = false;
     _shaderCompositionDirty = true;
@@ -930,48 +927,6 @@ void State::dirtyAllVertexArrays()
     dirtyFogCoordPointer();
     dirtyNormalPointer();
     dirtySecondaryColorPointer();
-}
-
-void State::setCurrentFrameBufferObjectId(GLuint fboId, int target)
-{
-    switch (target)
-    {
-        case osg::FrameBufferObject::READ_FRAMEBUFFER :
-            _currentReadFboId = fboId;
-            break;
-        case osg::FrameBufferObject::DRAW_FRAMEBUFFER :
-            _currentDrawFboId = fboId;
-            break;
-        case osg::FrameBufferObject::READ_DRAW_FRAMEBUFFER :
-            _currentReadFboId = fboId;
-            _currentDrawFboId = fboId;
-            break;
-        default :
-            OSG_WARN << "Warning : State::setCurrentFrameBufferObjectId called with invalid \"target\" argument";
-            break;
-    }
-}
-
-GLuint State::getCurrentFrameBufferObject(int target)
-{
-    switch (target)
-    {
-        case osg::FrameBufferObject::READ_FRAMEBUFFER :
-            return _currentReadFboId;
-        case osg::FrameBufferObject::DRAW_FRAMEBUFFER :
-            return _currentDrawFboId;
-        case osg::FrameBufferObject::READ_DRAW_FRAMEBUFFER :
-            if (_currentDrawFboId != _currentReadFboId)
-            {
-                OSG_WARN << "Warning : State::getCurrentFrameBufferObject called with \"READ_DRAW_FRAMEBUFFER\" target but READ_FRAMEBUFFER and DRAW_FRAMEBUFFER are different. Returned value is DRAW_FRAMEBUFFER.";
-            }
-            return _currentDrawFboId;
-        default :
-            OSG_WARN << "Warning : State::getCurrentFrameBufferObject called with invalid \"target\" argument";
-            break;
-    }
-
-    return 0;
 }
 
 void State::setInterleavedArrays( GLenum format, GLsizei stride, const GLvoid* pointer)

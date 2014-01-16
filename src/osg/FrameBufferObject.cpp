@@ -873,7 +873,6 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
     if (_attachments.empty())
     {
         ext->glBindFramebuffer(target, 0);
-        state.setCurrentFrameBufferObjectId(target, 0);
         return;
     }
 
@@ -913,7 +912,6 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
 
 
     ext->glBindFramebuffer(target, fboID);
-    state.setCurrentFrameBufferObjectId(target, fboID);
 
     // enable drawing buffers to render the result to fbo
     if (_drawBuffers.size() > 0)
