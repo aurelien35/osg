@@ -49,8 +49,10 @@
 #include <osgFX/SpecularHighlights>
 
 #include <osgVolume/Volume>
+#include <osgVolume/VolumeScene>
 #include <osgVolume/RayTracedTechnique>
 #include <osgVolume/FixedFunctionTechnique>
+#include <osgVolume/MultipassTechnique>
 
 #include <sstream>
 #include <algorithm>
@@ -238,6 +240,15 @@ void SlideShowConstructor::createPresentation()
     //_root->addEventCallback(_propertyEventCallback.get());
 
     _presentationSwitch->setEventCallback(_propertyEventCallback.get());
+
+    for(ScriptEngineMap::iterator itr = _scriptEngines.begin();
+        itr != _scriptEngines.end();
+        ++itr)
+    {
+        OSG_NOTICE<<"Assigning '"<<itr->first<<"' ScriptEngine to Presentation in createPresentation()."<<std::endl;
+        _presentationSwitch->getOrCreateUserDataContainer()->addUserObject(itr->second.get());
+    }
+
 }
 
 LayerAttributes* SlideShowConstructor::getOrCreateLayerAttributes(osg::Node* node)
@@ -286,6 +297,48 @@ void SlideShowConstructor::setPresentationDuration(double duration)
     {
         setDuration(_presentationSwitch.get(),_presentationDuration);
     }
+}
+
+void SlideShowConstructor::addScriptEngine(const std::string& scriptEngineName)
+{
+    if (_scriptEngines.count(scriptEngineName)!=0)
+    {
+        OSG_NOTICE<<"Script engine "<<scriptEngineName<<" already loaded."<<std::endl;
+    }
+
+    osg::ref_ptr<osg::ScriptEngine> scriptEngine = osgDB::readFile<osg::ScriptEngine>(std::string("ScriptEngine.")+scriptEngineName);
+    if (scriptEngine.valid())
+    {
+        _scriptEngines[scriptEngineName] = scriptEngine;
+
+        if (_presentationSwitch.valid())
+        {
+            _presentationSwitch->getOrCreateUserDataContainer()->addUserObject(scriptEngine.get());
+        }
+    }
+    else
+    {
+        OSG_NOTICE<<"Warning: Failed to load "<<scriptEngineName<<" engine, scripts will not work."<<std::endl;
+    }
+}
+
+void SlideShowConstructor::addScriptFile(const std::string& name, const std::string& filename)
+{
+    OSG_NOTICE<<"addScriptFile() name="<<name<<", filename = "<<filename<<std::endl;
+    osg::ref_ptr<osg::Script> script = osgDB::readFile<osg::Script>(filename);
+    if (script.valid())
+    {
+        _scripts[name] = script;
+    }
+}
+
+void SlideShowConstructor::addScript(const std::string& name, const std::string& language, const std::string& scriptContents)
+{
+    OSG_NOTICE<<"addScript() language="<<language<<", name="<<name<<", script = "<<scriptContents<<std::endl;
+    osg::ref_ptr<osg::Script> script = new osg::Script;
+    script->setLanguage(language);
+    script->setScript(scriptContents);
+    _scripts[name] = script;
 }
 
 void SlideShowConstructor::addSlide()
@@ -356,18 +409,16 @@ void SlideShowConstructor::setSlideDuration(double duration)
     }
 }
 
-
-Timeout* SlideShowConstructor::addTimeout()
+void SlideShowConstructor::pushCurrentLayer(osg::Group* group)
 {
-    osg::ref_ptr<osgPresentation::Timeout> timeout = new osgPresentation::Timeout(_hudSettings.get());
-    if (_currentLayer.valid()) _currentLayer->addChild(timeout.get());
-    _currentLayer = timeout.get();
-    return timeout.release();
-}
+    if (_currentLayer.valid())
+    {
+        _currentLayer->addChild(group);
+        _layerStack.push_back(_currentLayer.get());
+    }
 
-void SlideShowConstructor::pushCurrentLayer()
-{
-    _layerStack.push_back(_currentLayer.get());
+    _currentLayer = group;
+
 }
 
 void SlideShowConstructor::popCurrentLayer()
@@ -376,6 +427,10 @@ void SlideShowConstructor::popCurrentLayer()
     {
         _currentLayer = _layerStack.back();
         _layerStack.pop_back();
+    }
+    else
+    {
+        _currentLayer = 0;
     }
 }
 
@@ -640,6 +695,68 @@ void SlideShowConstructor::addPropertyAnimation(PresentationContext presentation
     }
 }
 
+void SlideShowConstructor::addScriptCallback(PresentationContext presentationContext, ScriptCallbackType scriptCallbackType, const std::string& name)
+{
+    switch(presentationContext)
+    {
+        case(CURRENT_PRESENTATION):
+            OSG_NOTICE<<"  Adding ScriptCallback to presentation."<<std::endl;
+            if (!_presentationSwitch) createPresentation();
+            if (_presentationSwitch.valid()) addScriptToNode(scriptCallbackType, name, _presentationSwitch.get());
+            break;
+        case(CURRENT_SLIDE):
+            OSG_NOTICE<<"  Adding ScriptCallback to slide."<<std::endl;
+            if (!_slide) addSlide();
+            if (_slide.valid()) addScriptToNode(scriptCallbackType, name, _slide.get());
+            break;
+        case(CURRENT_LAYER):
+            OSG_NOTICE<<"  Adding ScriptCallback to layer."<<std::endl;
+            if (!_currentLayer) addLayer();
+            if (_currentLayer.valid())
+            {
+                addScriptToNode(scriptCallbackType, name, _currentLayer.get());
+            }
+            break;
+    }
+}
+
+void SlideShowConstructor::addScriptToNode(ScriptCallbackType scriptCallbackType, const std::string& name, osg::Node* node)
+{
+    std::string::size_type colon_position = name.find(':');
+    std::string script_name = (colon_position==std::string::npos) ? name : name.substr(0, colon_position);
+    std::string entry_point = (colon_position==std::string::npos) ? std::string() : name.substr(colon_position+1,std::string::npos);
+    ScriptMap::iterator script_itr = _scripts.find(script_name);
+    if (script_itr!=_scripts.end())
+    {
+        switch(scriptCallbackType)
+        {
+            case(UPDATE_SCRIPT) :
+                node->addUpdateCallback(new osg::ScriptCallback(script_itr->second.get(), entry_point));
+                break;
+            case(EVENT_SCRIPT) :
+                node->addEventCallback(new osg::ScriptCallback(script_itr->second.get(), entry_point));
+                break;
+        }
+    }
+    else
+    {
+        OSG_NOTICE<<"Warning: script '"<<name<<"' not defined."<<std::endl;
+    }
+}
+
+void SlideShowConstructor::addScriptsToNode(const ScriptData& scriptData, osg::Node* node)
+{
+    if (!node) return;
+
+    for(ScriptData::Scripts::const_iterator itr = scriptData.scripts.begin();
+        itr != scriptData.scripts.end();
+        ++itr)
+    {
+        addScriptToNode(itr->first, itr->second, node);
+    }
+}
+
+
 
 osg::Node* SlideShowConstructor::decorateSubgraphForPosition(osg::Node* node, PositionData& positionData)
 {
@@ -673,7 +790,7 @@ osg::Node* SlideShowConstructor::decorateSubgraphForPosition(osg::Node* node, Po
     return subgraph;
 }
 
-void SlideShowConstructor::addBullet(const std::string& bullet, PositionData& positionData, FontData& fontData)
+void SlideShowConstructor::addBullet(const std::string& bullet, PositionData& positionData, FontData& fontData, const ScriptData& scriptData)
 {
     osg::Geode* geode = new osg::Geode;
 
@@ -719,9 +836,11 @@ void SlideShowConstructor::addBullet(const std::string& bullet, PositionData& po
     {
         updatePositionFromInModelCoords(localPosition, _textPositionData);
     }
+
+    if (scriptData.hasScripts()) addScriptsToNode(scriptData, geode);
 }
 
-void SlideShowConstructor::addParagraph(const std::string& paragraph, PositionData& positionData, FontData& fontData)
+void SlideShowConstructor::addParagraph(const std::string& paragraph, PositionData& positionData, FontData& fontData, const ScriptData& scriptData)
 {
     osg::Geode* geode = new osg::Geode;
 
@@ -766,6 +885,8 @@ void SlideShowConstructor::addParagraph(const std::string& paragraph, PositionDa
     {
         updatePositionFromInModelCoords(localPosition, _textPositionData);
     }
+
+    if (scriptData.hasScripts()) addScriptsToNode(scriptData, geode);
 }
 
 class FindImageStreamsVisitor : public osg::NodeVisitor
@@ -1178,7 +1299,7 @@ void SlideShowConstructor::setUpMovieVolume(osg::Node* subgraph, osg::ImageStrea
     }
 }
 
-void SlideShowConstructor::addImage(const std::string& filename, const PositionData& positionData, const ImageData& imageData)
+void SlideShowConstructor::addImage(const std::string& filename, const PositionData& positionData, const ImageData& imageData, const ScriptData& scriptData)
 {
     osg::ref_ptr<osg::Image> image = readImage(filename, imageData);
     if (!image) return;
@@ -1336,9 +1457,11 @@ void SlideShowConstructor::addImage(const std::string& filename, const PositionD
     }
 
     addToCurrentLayer(subgraph);
+
+    if (scriptData.hasScripts()) addScriptsToNode(scriptData, subgraph);
 }
 
-void SlideShowConstructor::addStereoImagePair(const std::string& filenameLeft, const ImageData& imageDataLeft, const std::string& filenameRight, const ImageData& imageDataRight,const PositionData& positionData)
+void SlideShowConstructor::addStereoImagePair(const std::string& filenameLeft, const ImageData& imageDataLeft, const std::string& filenameRight, const ImageData& imageDataRight,const PositionData& positionData, const ScriptData& scriptData)
 {
     osg::ref_ptr<osg::Image> imageLeft = readImage(filenameLeft, imageDataLeft);
     osg::ref_ptr<osg::Image> imageRight = (filenameRight==filenameLeft) ? imageLeft.get() : readImage(filenameRight, imageDataRight);
@@ -1558,9 +1681,11 @@ void SlideShowConstructor::addStereoImagePair(const std::string& filenameLeft, c
     }
 
     addToCurrentLayer(subgraph);
+
+    if (scriptData.hasScripts()) addScriptsToNode(scriptData, subgraph);
 }
 
-void SlideShowConstructor::addGraph(const std::string& contents, const PositionData& positionData, const ImageData& imageData)
+void SlideShowConstructor::addGraph(const std::string& contents, const PositionData& positionData, const ImageData& imageData, const ScriptData& scriptData)
 {
     static int s_count=0;
 
@@ -1618,7 +1743,7 @@ void SlideShowConstructor::addGraph(const std::string& contents, const PositionD
         _options = _options.valid() ? _options->cloneOptions() : (new osgDB::Options);
         _options->setObjectCacheHint(osgDB::Options::CACHE_NONE);
 
-        addImage(tmpSvgFileName, positionData, imageData);
+        addImage(tmpSvgFileName, positionData, imageData, scriptData);
 
         _options = previousOptions;
 
@@ -1628,7 +1753,7 @@ void SlideShowConstructor::addGraph(const std::string& contents, const PositionD
 }
 
 
-void SlideShowConstructor::addVNC(const std::string& hostname, const PositionData& positionData, const ImageData& imageData, const std::string& password)
+void SlideShowConstructor::addVNC(const std::string& hostname, const PositionData& positionData, const ImageData& imageData, const std::string& password, const ScriptData& scriptData)
 {
     if (!password.empty())
     {
@@ -1637,17 +1762,17 @@ void SlideShowConstructor::addVNC(const std::string& hostname, const PositionDat
         osgDB::Registry::instance()->getAuthenticationMap()->addAuthenticationDetails(hostname, new osgDB::AuthenticationDetails("", password));
     }
 
-    addInteractiveImage(hostname+".vnc", positionData, imageData);
+    addInteractiveImage(hostname+".vnc", positionData, imageData, scriptData);
 }
 
-void SlideShowConstructor::addBrowser(const std::string& url, const PositionData& positionData, const ImageData& imageData)
+void SlideShowConstructor::addBrowser(const std::string& url, const PositionData& positionData, const ImageData& imageData, const ScriptData& scriptData)
 {
-    addInteractiveImage(url+".gecko", positionData, imageData);
+    addInteractiveImage(url+".gecko", positionData, imageData, scriptData);
 }
 
-void SlideShowConstructor::addPDF(const std::string& filename, const PositionData& positionData, const ImageData& imageData)
+void SlideShowConstructor::addPDF(const std::string& filename, const PositionData& positionData, const ImageData& imageData, const ScriptData& scriptData)
 {
-    addInteractiveImage(filename, positionData, imageData);
+    addInteractiveImage(filename, positionData, imageData, scriptData);
 }
 
 class SetPageCallback: public LayerCallback
@@ -1674,7 +1799,7 @@ public:
 };
 
 
-osg::Image* SlideShowConstructor::addInteractiveImage(const std::string& filename, const PositionData& positionData, const ImageData& imageData)
+osg::Image* SlideShowConstructor::addInteractiveImage(const std::string& filename, const PositionData& positionData, const ImageData& imageData, const ScriptData& scriptData)
 {
     osg::ref_ptr<osgDB::Options> options = _options;
     if (!imageData.options.empty())
@@ -1817,6 +1942,7 @@ osg::Image* SlideShowConstructor::addInteractiveImage(const std::string& filenam
 
     }
 
+    if (scriptData.hasScripts()) addScriptsToNode(scriptData, subgraph);
 
     return image;
 }
@@ -1900,7 +2026,7 @@ protected:
 };
 
 
-void SlideShowConstructor::addModel(const std::string& filename, const PositionData& positionData, const ModelData& modelData)
+void SlideShowConstructor::addModel(const std::string& filename, const PositionData& positionData, const ModelData& modelData, const ScriptData& scriptData)
 {
     OSG_INFO<<"SlideShowConstructor::addModel("<<filename<<")"<<std::endl;
 
@@ -1984,18 +2110,19 @@ void SlideShowConstructor::addModel(const std::string& filename, const PositionD
 
     if (subgraph.valid())
     {
-        addModel(subgraph.get(), positionData, modelData);
+        addModel(subgraph.get(), positionData, modelData, scriptData);
     }
     else
     {
         OSG_NOTICE<<"Could not loaded model file : "<<filename<<std::endl;
     }
 
+
     OSG_INFO<<"end of SlideShowConstructor::addModel("<<filename<<")"<<std::endl<<std::endl;
 
 }
 
-void SlideShowConstructor::addModel(osg::Node* subgraph, const PositionData& positionData, const ModelData& modelData)
+void SlideShowConstructor::addModel(osg::Node* subgraph, const PositionData& positionData, const ModelData& modelData, const ScriptData& scriptData)
 {
     osg::Object::DataVariance defaultMatrixDataVariance = osg::Object::DYNAMIC; // STATIC
 
@@ -2163,6 +2290,8 @@ void SlideShowConstructor::addModel(osg::Node* subgraph, const PositionData& pos
     findImageStreamsAndAddCallbacks(subgraph);
 
     addToCurrentLayer(subgraph);
+
+    if (scriptData.hasScripts()) addScriptsToNode(scriptData, subgraph);
 }
 
 class DraggerVolumeTileCallback : public osgManipulator::DraggerCallback
@@ -2376,7 +2505,7 @@ void SlideShowConstructor::setUpVolumeScalarProperty(osgVolume::VolumeTile* tile
 }
 
 
-void SlideShowConstructor::addVolume(const std::string& filename, const PositionData& in_positionData, const VolumeData& volumeData)
+void SlideShowConstructor::addVolume(const std::string& filename, const PositionData& in_positionData, const VolumeData& volumeData, const ScriptData& scriptData)
 {
     // osg::Object::DataVariance defaultMatrixDataVariance = osg::Object::DYNAMIC; // STATIC
 
@@ -2660,11 +2789,32 @@ void SlideShowConstructor::addVolume(const std::string& filename, const Position
         }
 
         layer->addProperty(sp);
-        tile->setVolumeTechnique(new osgVolume::RayTracedTechnique);
+
+        switch(volumeData.technique)
+        {
+            case(VolumeData::FixedFunction):
+                tile->setVolumeTechnique(new osgVolume::FixedFunctionTechnique);
+                break;
+            case(VolumeData::RayTraced):
+                tile->setVolumeTechnique(new osgVolume::RayTracedTechnique);
+                break;
+            case(VolumeData::MultiPass):
+                tile->setVolumeTechnique(new osgVolume::MultipassTechnique);
+                break;
+        }
+
         tile->addEventCallback(new osgVolume::PropertyAdjustmentCallback());
     }
 
-
+    if (dynamic_cast<osgVolume::MultipassTechnique*>(tile->getVolumeTechnique())!=0)
+    {
+        if (dynamic_cast<osgVolume::VolumeScene*>(_root.get())==0)
+        {
+            osg::ref_ptr<osgVolume::VolumeScene> volumeScene = new osgVolume::VolumeScene;
+            volumeScene->addChild(_root.get());
+            _root = volumeScene.get();
+        }
+    }
 
 
     osg::ref_ptr<osg::Node> model = volume.get();
@@ -2701,7 +2851,7 @@ void SlideShowConstructor::addVolume(const std::string& filename, const Position
     }
 
     ModelData modelData;
-    addModel(model.get(), positionData, modelData);
+    addModel(model.get(), positionData, modelData, scriptData);
 }
 
 bool SlideShowConstructor::attachTexMat(osg::StateSet* stateset, const ImageData& imageData, float s, float t, bool textureRectangle)

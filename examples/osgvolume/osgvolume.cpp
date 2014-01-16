@@ -664,6 +664,9 @@ int main( int argc, char **argv )
     double sampleDensityWhenMoving = 0.0;
     while(arguments.read("--sdwm", sampleDensityWhenMoving)) {}
 
+    double sampleRatioWhenMoving = 0.0;
+    while(arguments.read("--srwm", sampleRatioWhenMoving)) {}
+
     while(arguments.read("--lod")) { sampleDensityWhenMoving = 0.02; }
 
     double sequenceLength = 10.0;
@@ -1067,8 +1070,16 @@ int main( int argc, char **argv )
         sp->setActiveProperty(0);
 
         osgVolume::AlphaFuncProperty* ap = new osgVolume::AlphaFuncProperty(alphaFunc);
-        osgVolume::SampleDensityProperty* sd = new osgVolume::SampleDensityProperty(0.005);
+        osgVolume::IsoSurfaceProperty* isop = new osgVolume::IsoSurfaceProperty(alphaFunc);
+
+        // SampleDensity is now deprecated
+        osgVolume::SampleDensityProperty* sd = new osgVolume::SampleDensityProperty(0.005f);
         osgVolume::SampleDensityWhenMovingProperty* sdwm = sampleDensityWhenMoving!=0.0 ? new osgVolume::SampleDensityWhenMovingProperty(sampleDensityWhenMoving) : 0;
+
+        // use SampleRatio in place of SampleDensity
+        osgVolume::SampleRatioProperty* sr = new osgVolume::SampleRatioProperty(1.0f);
+        osgVolume::SampleRatioWhenMovingProperty* srwm = sampleRatioWhenMoving!=0.0 ? new osgVolume::SampleRatioWhenMovingProperty(sampleRatioWhenMoving) : 0;
+
         osgVolume::TransparencyProperty* tp = new osgVolume::TransparencyProperty(1.0);
         osgVolume::TransferFunctionProperty* tfp = transferFunction.valid() ? new osgVolume::TransferFunctionProperty(transferFunction.get()) : 0;
 
@@ -1076,10 +1087,23 @@ int main( int argc, char **argv )
             // Standard
             osgVolume::CompositeProperty* cp = new osgVolume::CompositeProperty;
             cp->addProperty(ap);
-            cp->addProperty(sd);
+            if (useMultipass)
+            {
+                cp->addProperty(sr);
+                if (srwm) cp->addProperty(srwm);
+            }
+            else
+            {
+                cp->addProperty(sd);
+                if (sdwm) cp->addProperty(sdwm);
+            }
             cp->addProperty(tp);
-            if (sdwm) cp->addProperty(sdwm);
-            if (tfp) cp->addProperty(tfp);
+
+            if (tfp)
+            {
+                OSG_NOTICE<<"Adding TransferFunction"<<std::endl;
+                cp->addProperty(tfp);
+            }
 
             sp->addProperty(cp);
         }
@@ -1088,7 +1112,8 @@ int main( int argc, char **argv )
             // Light
             osgVolume::CompositeProperty* cp = new osgVolume::CompositeProperty;
             cp->addProperty(ap);
-            cp->addProperty(sd);
+            if (useMultipass) cp->addProperty(sr);
+            else cp->addProperty(sd);
             cp->addProperty(tp);
             cp->addProperty(new osgVolume::LightingProperty);
             if (sdwm) cp->addProperty(sdwm);
@@ -1100,9 +1125,10 @@ int main( int argc, char **argv )
         {
             // Isosurface
             osgVolume::CompositeProperty* cp = new osgVolume::CompositeProperty;
-            cp->addProperty(sd);
+            if (useMultipass) cp->addProperty(sr);
+            else cp->addProperty(sd);
             cp->addProperty(tp);
-            cp->addProperty(new osgVolume::IsoSurfaceProperty(alphaFunc));
+            cp->addProperty(isop);
             if (sdwm) cp->addProperty(sdwm);
             if (tfp) cp->addProperty(tfp);
 
@@ -1113,7 +1139,10 @@ int main( int argc, char **argv )
             // MaximumIntensityProjection
             osgVolume::CompositeProperty* cp = new osgVolume::CompositeProperty;
             cp->addProperty(ap);
-            cp->addProperty(sd);
+
+            if (useMultipass) cp->addProperty(sr);
+            else cp->addProperty(sd);
+
             cp->addProperty(tp);
             cp->addProperty(new osgVolume::MaximumIntensityProjectionProperty);
             if (sdwm) cp->addProperty(sdwm);
@@ -1225,9 +1254,9 @@ int main( int argc, char **argv )
         {
             osg::ref_ptr<osgVolume::VolumeScene> volumeScene = new osgVolume::VolumeScene;
             volumeScene->addChild(loadedModel.get());
+            loadedModel->getOrCreateStateSet();
             loadedModel = volumeScene.get();
         }
-
 
 
 

@@ -53,16 +53,6 @@
     #endif
 #endif
 
-#if !defined(GL_EXT_timer_query) && !defined(OSG_GL3_AVAILABLE)
-    #ifdef _WIN32
-        typedef          __int64 GLint64EXT;
-        typedef unsigned __int64 GLuint64EXT;
-    #else
-        typedef long long int GLint64EXT;
-        typedef unsigned long long int GLuint64EXT;
-    #endif
-#endif
-
 namespace osg {
 
 /** macro for use with osg::StateAttribute::apply methods for detecting and
@@ -1206,6 +1196,13 @@ class OSG_EXPORT State : public Referenced, public Observer
             dirtyVertexAttribPointersAboveAndIncluding(_texCoordAliasList[unit]._location);
         #endif
         }
+
+
+        /// For GL>=2.0 uses GL_MAX_TEXTURE_COORDS, for GL<2 uses GL_MAX_TEXTURE_UNITS
+        inline GLint getMaxTextureCoords() const { return _glMaxTextureCoords; }
+
+        /// For GL>=2.0 uses GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, for GL<2 uses GL_MAX_TEXTURE_UNITS
+        inline GLint getMaxTextureUnits() const { return _glMaxTextureUnits; }
 
 
         /** Set the current texture unit, return true if selected,
