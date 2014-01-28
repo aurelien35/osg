@@ -266,9 +266,14 @@ void Viewer::take(osg::View& rhs)
         _startRenderingBarrier = rhs_viewer->_startRenderingBarrier;
         _endRenderingDispatchBarrier = rhs_viewer->_endRenderingDispatchBarrier;
         _endDynamicDrawBlock = rhs_viewer->_endDynamicDrawBlock;
+
         _eventVisitor = rhs_viewer->_eventVisitor;
+        _eventVisitor->setActionAdapter(this);
+        _eventVisitor->setFrameStamp(_frameStamp.get());
+
         _updateOperations = rhs_viewer->_updateOperations;
         _updateVisitor = rhs_viewer->_updateVisitor;
+
         _realizeOperation = rhs_viewer->_realizeOperation;
         _currentContext = rhs_viewer->_currentContext;
 
@@ -283,6 +288,7 @@ void Viewer::take(osg::View& rhs)
         rhs_viewer->_updateVisitor = 0;
         rhs_viewer->_realizeOperation = 0;
         rhs_viewer->_currentContext = 0;
+
     }
 #endif
 }
@@ -927,6 +933,11 @@ void Viewer::eventTraversal()
                         {
                             event->setY((event->getYmax()-event->getY())+event->getYmin());
                             event->setMouseYOrientation(osgGA::GUIEventAdapter::Y_INCREASING_UPWARDS);
+                            if(event->isMultiTouchEvent()) {
+                                for(osgGA::GUIEventAdapter::TouchData::iterator itr = event->getTouchData()->begin(); itr != event->getTouchData()->end(); itr++) {
+                                    itr->y = event->getYmax() - itr->y + event->getYmin();
+                                }
+                            }
                         }
 #endif
 
